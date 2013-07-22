@@ -1,0 +1,337 @@
+' Gambas module file
+
+Library "/usr/local/lib/libwiringPi"
+
+Public Extern wiringPiSetup() As Integer
+Public Extern wiringPiI2CSetup(devId As Integer) As Integer
+Public Extern wiringPiI2CRead(fd As Integer) As Integer
+Public Extern wiringPiI2CWrite(fd As Integer, data As Integer) As Integer
+Public Extern wiringPiI2CWriteReg8(fd As Integer, reg As Integer, data As Integer) As Integer
+Public Extern wiringPiI2CWriteReg16(fd As Integer, reg As Integer, data As Integer) As Integer
+Public Extern wiringPiI2CReadReg8(fd As Integer, reg As Integer) As Integer
+Public Extern wiringPiI2CReadReg16(fd As Integer, reg As Integer) As Integer
+Public Extern digitalRead(pin As Integer) As Integer
+Public Extern digitalWrite(pin As Integer, value As Integer)
+Public Extern pinMode(pin As Integer, pud As Integer)
+Public Extern wiringPiSPISetup(channel As Integer, speed As Integer) As Integer
+Public Extern wiringPiSPIDataRW(channel As Integer, data As Pointer, leng As Integer) As Integer
+
+Public Const PIN_OUTPUT As Integer = 1
+Public Const PIN_INPUT As Integer = 0
+
+Public fd As Integer
+Public hFile As File
+Public fi As File 
+
+Public Sub Main()
+
+  Dim l$, nam$ As String
+  Dim typ As Integer = 0
+  If Application.Args.Count < 2
+    Print "No file name\nUse GPIOscript <sriptfile>\n"
+    Quit
+  Endif
+  nam$ = Application.Args[1]
+  nam$ = Lower$(nam$)
+  If InStr(nam$, ".i2c") <> 0 Then typ = 1
+  If InStr(nam$, ".spi") <> 0 Then typ = 2
+  If typ = 0
+    Print "Not a valid file extension\nExtension needs to be .i2c or .spi\n"
+    Quit
+  Endif
+  If (wiringPiSetup() = -1)
+    Print "Failed to setup wiringPi. This program must be run as root"
+    Quit
+  Endif
+  hFile = Open nam$ For Input
+  If typ = 1 Then i2c()
+  If typ = 2 Then spi()
+  
+End
+  
+Public Sub test() As Integer
+  
+  If fd = -1
+   Print "Device not open\n"
+   Return False
+  Else
+    Return True
+  Endif
+End
+
+Public Sub i2c()
+
+  Dim l$, c$, r$, s$ As String
+  Dim i, y, x, t As Integer = 1
+  If Eof(hFile) Then Return
+  Shell ("gpio load i2c")
+  While Not Eof(hFile)
+     Line Input #hFile, l$
+     If Len(l$) < 2 Then Continue
+     l$ = LTrim$(RTrim$(l$))
+     l$ = UCase$(l$)
+     c$ = Left$(l$, 2)
+     l$ = Mid$(l$, 3)
+     l$ = LTrim$(l$)
+     Select Case c$
+       Case "WT"
+         If Val(l$) = Null
+            Print "WT Data error or missing"
+         Else
+            x = Val(l$)
+            If x > 1000 Then x = 1000
+            Sleep x / 1000
+            Print "Wait " & Str$(x) & "mS"
+         Endif
+       Case "OP"
+         If Val("&H" & l$) = Null
+            Print "OP Data error or missing"
+         Else         
+          x = Val("&H" & l$)
+          If x < 3 Then x = 3
+          If x > 119 Then x = 119
+          fd = wiringPiI2CSetup(x)
+          If test() Then Print "Port " & Hex$(Val("&H" & l$), 2) & " is open"
+         Endif
+       Case "RD"
+         If test() Then Print "Data Read < " & Hex$(wiringPiI2CRead(fd), 2)
+       Case "WR"
+         If Val("&H" & l$) = Null
+            Print "WR Data error or missing"
+         Else
+            If test() Then wiringPiI2CWrite(fd, Val("&H" & l$))
+            If test() Then Print "Data Write > " & Hex$(Val("&H" & l$), 2)
+         Endif
+       Case "RR"
+         x = InStr(l$, " ")
+         If x <> 0
+           r$ = Mid$(l$, x + 1, 1)
+           l$ = Left$(l$, x)
+         Endif         
+         If Val("&H" & l$) = Null
+            Print "RR Data error or missing"
+         Else
+            If r$ = "W"
+                If test() Then Print "Reg " & Hex$(Val("&H" & l$), 2) & " Read < " & Hex$(wiringPiI2CReadReg16(fd, Val("&H" & l$)), 4)
+            Else
+                If test() Then Print "Reg " & Hex$(Val("&H" & l$), 2) & " Read < " & Hex$(wiringPiI2CReadReg8(fd, Val("&H" & l$)), 2)
+            Endif
+         Endif
+       Case "RW"
+         x = InStr(l$, " ")
+         If x <> 0
+           s$ = Mid$(l$, x + 1)
+           l$ = Left$(l$, x)
+         Endif         
+         x = InStr(s$, " ")
+         If x <> 0
+           r$ = Mid$(s$, x + 1, 1)
+           s$ = Left$(s$, x)
+         Endif         
+         If Val("&H" & l$) = Null Or If Val("&H" & s$) = Null
+            Print "RW Data error or missing"
+         Else
+            If r$ = "W"
+                If test() Then wiringPiI2CWriteReg16(fd, Val("&H" & l$), Val("&H" & s$))
+                If test() Then Print "Reg " & Hex$(Val("&H" & l$), 2) & " Write > " & Hex$(Val("&H" & s$), 4)
+            Else
+                If test() Then wiringPiI2CWriteReg8(fd, Val("&H" & l$), Val("&H" & s$))
+                If test() Then Print "Reg " & Hex$(Val("&H" & l$), 2) & " Write > " & Hex$(Val("&H" & s$), 2)
+            Endif
+         Endif
+       Case "PH"
+         If Val(Left$(l$, 1)) = Null
+            Print "PH Data error or missing"
+         Else
+          x = Val(Left$(l$, 1))
+          If x > 7 Then x = 0
+          pinMode(x, PIN_OUTPUT)
+          digitalWrite(x, 1)
+          Print "Pin " & Str$(x) & " > is high"
+         Endif
+       Case "PL"
+         If Val(Left$(l$, 1)) = Null
+            Print "PL Data error or missing"
+         Else
+          x = Val(Left$(l$, 1))
+          If x > 7 Then x = 0
+          pinMode(x, PIN_OUTPUT)
+          digitalWrite(x, 0)
+          Print "Pin " & Str$(x) & " > is low"
+         Endif
+       Case "WH"
+         If Val(Left$(l$, 1)) = Null
+            Print "WH Data error or missing"
+         Else
+          x = Val(Left$(l$, 1))
+          If x > 7 Then x = 0
+          pinMode(x, PIN_INPUT)
+          t = 0
+          While digitalRead(x) = 0
+            Sleep 1 / 1000
+            t = t + 1
+            If t = 1000 Then Break
+          Wend
+          If t = 1000
+             Print "Pin " & Str$(x) & " < is timed out"
+          Else
+             Print "Pin " & Str$(x) & " < is high"
+          Endif
+         Endif
+       Case "WL"
+         If Val(Left$(l$, 1)) = Null
+            Print "WL Data error or missing"
+         Else
+          x = Val(Left$(l$, 1))
+          If x > 7 Then x = 0
+          pinMode(x, PIN_INPUT)
+          t = 0
+          While digitalRead(x) = 1
+            Sleep 1 / 1000
+            t = t + 1
+            If t = 1000 Then Break
+          Wend
+          If t = 1000
+             Print "Pin " & Str$(x) & " < is timed out"
+          Else
+             Print "Pin " & Str$(x) & " < is low"
+          Endif
+         Endif
+        Case Else
+          Print "Unkwown Command " & c$
+     End Select
+  Wend
+End
+
+Public Sub spi()
+
+  Dim l$, c$, r$ As String
+  Dim i, y, x, t As Integer = 1
+  Dim b As Byte
+  If Eof(hFile) Then Return
+  Shell ("gpio load spi")
+  While Not Eof(hFile)
+     Line Input #hFile, l$
+     If Len(l$) < 2 Then Continue
+     l$ = LTrim$(RTrim$(l$))
+     c$ = Left$(l$, 2)
+     c$ = UCase$(c$)
+     l$ = Mid$(l$, 3)
+     l$ = LTrim$(l$)
+     Select Case c$
+       Case "WT"
+         If Val(l$) = Null
+            Print "WT Data error or missing"
+         Else
+            x = Val(l$)
+            If x > 1000 Then x = 1000
+            Sleep x / 1000
+            Print "Wait " & Str$(x) & "mS"
+         Endif
+       Case "OP"
+         If Val(Left$(l$, 1)) = Null Or If Val(Mid$(l$, 3)) = Null
+            Print "OP Data error or missing"
+         Else
+          t = Val(Left$(l$, 1))
+          If t > 1 Then t = 0
+          x = Val(Mid$(l$, 3)) 
+          If x < 50 Then x = 50
+          If x > 320 Then x = 320        
+          fd = wiringPiSPISetup(t, x * 1000)
+          If t = 0
+             fi = Open "/dev/spidev0.0" For Read Write
+          Else
+             fi = Open "/dev/spidev0.1" For Read Write
+          Endif         
+          If test() Then Print "Dev " & Str$(t) & " is open at " & Str$(x) & "kHz"
+         Endif
+       Case "RD"
+         If test() Then b = Read #fi As Byte
+         If test() Then Print "Data Read < " & Hex$(b, 2)
+       Case "WR"
+         If Val("&H" & l$) = Null
+            Print "WR Data error or missing"
+         Else
+            b = Val("&H" & l$)
+            If test() Then Write #fi, b As Byte
+            If test() Then Print "Data Write > " & Hex$(Val("&H" & l$), 2)
+         Endif
+       Case "RS"
+         If Val(l$) = Null
+            Print "RS Data error or missing"
+         Else
+            If test() Then Read #fi, r$, Val(l$)
+            r$ = LTrim$(RTrim$(r$))
+'             If r$ <> "" 
+              If test() Then Print "Str < " & r$
+'             Else
+'               If test() Then Print "Str < NULL"
+'             Endif
+         Endif
+       Case "WS"
+            If test() Then Write #fi, l$ As String
+            If test() Then Print "Str > " & l$
+       Case "PH"
+         If Val(Left$(l$, 1)) = Null
+            Print "PH Data error or missing"
+         Else
+          x = Val(Left$(l$, 1))
+          If x > 7 Then x = 0
+          pinMode(x, PIN_OUTPUT)
+          digitalWrite(x, 1)
+          Print "Pin " & Str$(x) & " is high"
+         Endif
+       Case "PL"
+         If Val(Left$(l$, 1)) = Null
+            Print "PL Data error or missing"
+         Else
+          x = Val(Left$(l$, 1))
+          If x > 7 Then x = 0
+          pinMode(x, PIN_OUTPUT)
+          digitalWrite(x, 0)
+          Print "Pin " & Str$(x) & " is low"
+         Endif
+       Case "WH"
+         If Val(Left$(l$, 1)) = Null
+            Print "WH Data error or missing"
+         Else
+          x = Val(Left$(l$, 1))
+          If x > 7 Then x = 0
+          pinMode(x, PIN_INPUT)
+          t = 0
+          While digitalRead(x) = 0
+            Sleep 1 / 1000
+            t = t + 1
+            If t = 1000 Then Break
+          Wend
+          If t = 1000
+             Print "Pin " & Str$(x) & " < is timed out"
+          Else
+             Print "Pin " & Str$(x) & " < is high"
+          Endif
+         Endif
+       Case "WL"
+         If Val(Left$(l$, 1)) = Null
+            Print "WL Data error or missing"
+         Else
+          x = Val(Left$(l$, 1))
+          If x > 7 Then x = 0
+          pinMode(x, PIN_INPUT)
+          t = 0
+          While digitalRead(x) = 1
+            Sleep 1 / 1000
+            t = t + 1
+            If t = 1000 Then Break
+          Wend
+          If t = 1000
+             Print "Pin " & Str$(x) & " < is timed out"
+          Else
+             Print "Pin " & Str$(x) & " < is low"
+          Endif
+         Endif
+      Case Else
+          Print "Unkwown Command " & c$
+     End Select
+  Wend 
+
+End

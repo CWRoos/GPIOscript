@@ -1,0 +1,28 @@
+Format: 1.8
+Date: Mon, 22 Jul 2013 12:00:00 +0000
+Source: gpioscript
+Binary: gpioscript
+Architecture: source all
+Version: 0.5.17-1
+Distribution: unstable
+Urgency: low
+Maintainer: pi <roossien@gmail.com>
+Changed-By: pi <roossien@gmail.com>
+Description: 
+ gpioscript - This is GPIO Script Runner
+Changes: 
+ gpioscript (0.5.17-1) unstable; urgency=low
+ .
+   * Initial
+Checksums-Sha1: 
+ 8cc64b2bf47e4628fe10685bf3729c98ca9a86ff 828 gpioscript_0.5.17-1.dsc
+ bb1359bf609ad4f2d3a3f8708cca65c7434fb47e 1066 gpioscript_0.5.17-1.diff.gz
+ c087ce0e58261308f88efc0d1adc5ba777177f9f 10132 gpioscript_0.5.17-1_all.deb
+Checksums-Sha256: 
+ 1662a38e156678f13497da9bde80f0261322562bb11549a26c2b3b9a03f38499 828 gpioscript_0.5.17-1.dsc
+ 8a2b03d6a40fd940d64de4bbec8fde2e783bc22446958acc1d1c9b7b0d9c97d2 1066 gpioscript_0.5.17-1.diff.gz
+ 17f979211fc770ecad2872e058dac5ba88e6cd44ce7cb2e995d188f84897ecf7 10132 gpioscript_0.5.17-1_all.deb
+Files: 
+ cc1ca3cbb26bcbae33d76a4849052d45 828 contrib/electronics optional gpioscript_0.5.17-1.dsc
+ d1fb4d186f6de9ef3afc39b2839f26e0 1066 contrib/electronics optional gpioscript_0.5.17-1.diff.gz
+ 5c235ca1d770fa17862b03386cb5f929 10132 contrib/electronics optional gpioscript_0.5.17-1_all.deb

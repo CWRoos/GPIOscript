@@ -22,6 +22,7 @@ Public Const PIN_INPUT As Integer = 0
 Public fd As Integer
 Public hFile As File
 Public fi As File 
+Public buf As Pointer
 
 Public Sub Main()
 
@@ -32,9 +33,8 @@ Public Sub Main()
     Quit
   Endif
   nam$ = Application.Args[1]
-  nam$ = Lower$(nam$)
-  If InStr(nam$, ".i2c") <> 0 Then typ = 1
-  If InStr(nam$, ".spi") <> 0 Then typ = 2
+  If InStr(Lower$(nam$), ".i2c") <> 0 Then typ = 1
+  If InStr(Lower$(nam$), ".spi") <> 0 Then typ = 2
   If typ = 0
     Print "Not a valid file extension\nExtension needs to be .i2c or .spi\n"
     Quit
@@ -45,8 +45,9 @@ Public Sub Main()
   Endif
   hFile = Open nam$ For Input
   If typ = 1 Then i2c()
+  buf = Alloc(10)
   If typ = 2 Then spi()
-  
+  Free(buf)
 End
   
 Public Sub test() As Integer
@@ -207,6 +208,7 @@ Public Sub spi()
 
   Dim l$, c$, r$ As String
   Dim i, y, x, t As Integer = 1
+  Dim bb As Stream
   Dim b As Byte
   If Eof(hFile) Then Return
   Shell ("gpio load spi")
@@ -219,6 +221,31 @@ Public Sub spi()
      l$ = Mid$(l$, 3)
      l$ = LTrim$(l$)
      Select Case c$
+         Case "WG"
+            If Len(l$) < 2
+             Print "WG Data error or missing"
+            Else
+             bb = Memory buf For Read Write
+             x = Len(l$)
+             t = 1
+             b = 0
+             Do
+               If Val("&H" & Mid$(l$, t, 2)) = Null Then Break
+               Write #bb, Val("&H" & Mid$(l$, t, 2)) As Byte
+               t = t + 2
+               b = b + 1
+             Loop Until t > x
+             If b = 0
+              Print "WG Data error or missing"
+              Break
+             Endif  
+             If test() Then wiringPiSPIDataRW(fd, buf, b)
+             r$ = "WG < "
+            For x = 0 To b - 1
+              r$ = r$ & Hex$(Byte@(buf + x), 2)
+            Next
+            If test() Then Print r$
+         Endif
        Case "WT"
          If Val(l$) = Null
             Print "WT Data error or missing"
